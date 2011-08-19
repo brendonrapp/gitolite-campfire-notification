@@ -38,11 +38,6 @@ File.open(filename, "w+") { |f| f.write Time.now.utc }
 
 if config['message_format'] == "edouard"
   text = `#{GIT} log --all --since='#{revtime}' --reverse`
-revtime = last_revision.strftime("%Y %b %d %H:%M:%S %Z")
-File.open(filename, "w+") { |f| f.write Time.now.utc }
-
-if config['message_format'] == "edouard"
-  text = `#{GIT} log --all --since='#{revtime}' --reverse`
   lines = text.split("\n\ncommit ")
 
   if lines.any?
@@ -58,17 +53,18 @@ if config['message_format'] == "edouard"
           memo << [$1, $2]
         end
       end.to_yaml
-      room.speak "#{commit_author} commited “#{commit_log}”. #{config['commit_url'] + revision}", :type => text
+      room.speak "#{commit_author} commited “#{commit_log}”. #{url + revision}", :type => text
     end
   end
 
 elsif config['message_format'] == "git-log"
   commit_changes = `#{GIT} log --name-status --since='#{revtime}' --reverse`
   unless commit_changes.empty?
+    revision       = commit_changes[/([a-f0-9]{40})/]
     message = "Repository #{repository} has been pushed with the following commits:\n\n"
     message += commit_changes
     message += "\n"
-    message += "View commit at: #{url}\n" unless config['use_url'] == false
+    message += "View commit at: #{url + revision}\n" unless config['use_url'] == false
     room.speak("#{message}", :type => :paste)
   end
 end
