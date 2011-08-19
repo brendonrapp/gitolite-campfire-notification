@@ -1,0 +1,7 @@
+campfire_account: '<account>'
+campfire_api_token: '<token>'
+campfire_room: "<room name>"
+campfire_use_ssl: true
+gitweb_url: 'http://my-gitweb-url.com'  # Must use "pretty" paths
+use_url: false       # Set to false to exclude web link from message
+message_format: "git-log"

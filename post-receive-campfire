@@ -1,0 +1,77 @@
+#!/usr/bin/env ruby
+
+require 'rubygems'
+gem     'broach'
+require 'broach'
+require 'yaml'
+require 'time'
+
+config = YAML::load(File.open(File.join(File.dirname(__FILE__), 'config.yml')))
+
+Broach.settings = {
+  'account' => config['campfire_account'],
+  'token'   => config['campfire_api_token'],
+  'use_ssl' => config['campfire_use_ssl'] ||= true
+}
+room = Broach::Room.find_by_name(config['campfire_room'])
+repository = config['repository'] ||= File.basename(Dir.getwd, ".git")
+url = "#{config['gitweb_url']}/#{repository}.git/commit/" unless config['use_url'] == false
+
+GIT = `which git`.strip
+
+# Call to pre-speak hook
+load File.join(File.dirname(__FILE__), 'pre-speak') if File.exist?(File.join(File.dirname(__FILE__), 'pre-speak'))
+
+# Write in a file the timestamp of the last commit already posted to the room.
+filename = File.join(File.dirname(__FILE__), repository[/[\w.]+/] + ".log")
+if File.exist?(filename)
+  last_revision = Time.parse(File.open(filename) { |f| f.read.strip })
+else
+  # TODO: Skip error message if push includes first commit?
+  # Commenting out noisy error message for now
+  # room.speak("Warning: Couldn't find the previous push timestamp.")
+  last_revision = Time.now - 120
+end
+
+revtime = last_revision.strftime("%Y %b %d %H:%M:%S %Z")
+File.open(filename, "w+") { |f| f.write Time.now.utc }
+
+if config['message_format'] == "edouard"
+  text = `#{GIT} log --all --since='#{revtime}' --reverse`
+revtime = last_revision.strftime("%Y %b %d %H:%M:%S %Z")
+File.open(filename, "w+") { |f| f.write Time.now.utc }
+
+if config['message_format'] == "edouard"
+  text = `#{GIT} log --all --since='#{revtime}' --reverse`
+  lines = text.split("\n\ncommit ")
+
+  if lines.any?
+    room.speak "Repository #{repository} has been pushed with the following commits:", :type => :text
+    lines.each do |line|
+      revision       = line[/([a-f0-9]{40})/]
+      commit_author  = `#{GIT} show --pretty=format:"%an" #{revision} | sed q`.chomp
+      commit_log     = `#{GIT} show --pretty=format:"%s" #{revision}  | sed q`.chomp
+      commit_date    = `#{GIT} show --pretty=format:"%aD" #{revision} | sed q`.chomp
+      commit_changed = `#{GIT} diff-tree --name-status #{revision}    | sed -n '$p'`
+      commit_changes = commit_changed.split("\n").inject([]) do |memo, line| 
+        if line.strip =~ /(\w)\s+(.*)/
+          memo << [$1, $2]
+        end
+      end.to_yaml
+      room.speak "#{commit_author} commited “#{commit_log}”. #{config['commit_url'] + revision}", :type => text
+    end
+  end
+
+elsif config['message_format'] == "git-log"
+  commit_changes = `#{GIT} log --name-status --since='#{revtime}' --reverse`
+  unless commit_changes.empty?
+    message = "Repository #{repository} has been pushed with the following commits:\n\n"
+    message += commit_changes
+    message += "\n"
+    message += "View commit at: #{url}\n" unless config['use_url'] == false
+    room.speak("#{message}", :type => :paste)
+  end
+end
+
+# Call to post-speak hook
+load File.join(File.dirname(__FILE__), 'post-speak') if File.exist?(File.join(File.dirname(__FILE__), 'post-speak'))

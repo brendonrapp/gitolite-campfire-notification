@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+ 
+# Call to post-speak hook
+load File.join(File.dirname(__FILE__), 'post-receive-campfire') if File.exist?(File.join(File.dirname(__FILE__), 'post-receive-campfire'))
